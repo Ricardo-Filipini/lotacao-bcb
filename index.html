@@ -1,430 +1,471 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guia do Novo Servidor - BCB</title>
+    <title>Guia de Lotação - Banco Central do Brasil</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Chosen Palette: Slate and Cyan -->
-    <!-- Application Structure Plan: A solicitação do usuário pede um panorama de unidades do BCB para novos servidores. A estrutura da SPA foi desenhada como um "Explorador de Departamentos" interativo. A arquitetura é centrada em tarefas: 1) Uma "Visão Geral" (com um gráfico de distribuição de pessoal) e 2) "Exploração por Diretoria" (usando abas como filtros). Clicar em uma aba de diretoria filtra uma grade de "cards" de departamentos. Cada card é expansível ("Ver Mais") para mostrar detalhes (dia-a-dia, funções, subunidades), permitindo ao usuário "dar um drill-down" na informação que lhe interessa sem se sobrecarregar. Esta abordagem de "visão geral primeiro, detalhes sob demanda" é ideal para a jornada de um novo servidor que precisa entender a organização. -->
-    <!-- Visualization & Content Choices: 1. (Info: Contagem (fictícia) de colaboradores por depto. | Goal: Comparar/Informar | Viz: Gráfico de Barras (Chart.js/Canvas) | Interaction: Visualização estática na aba "Visão Geral" | Justification: Fornece um panorama rápido da alocação de pessoal. | Method: Chart.js). 2. (Info: Estrutura organizacional - Diretorias > Deptos > Subunidades | Goal: Organizar/Explorar | Viz: Abas de Filtro (HTML/Tailwind) + Grade de Cards Expansíveis (HTML/Tailwind/JS) | Interaction: Clicar na aba filtra a grade; Clicar no card expande detalhes. | Justification: Traduz a hierarquia em uma navegação interativa e filtrável, muito mais usável que uma lista estática. | Method: HTML/JS). 3. (Info: Dia-a-dia, Funções | Goal: Informar | Viz: Blocos de texto dinâmicos | Interaction: Exibidos ao expandir o card | Justification: Fornece detalhes contextuais sob demanda. | Method: JS show/hide). -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        
         body {
             font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
         }
-
-        .chart-container {
-            position: relative;
-            width: 100%;
-            max-width: 900px;
-            margin-left: auto;
-            margin-right: auto;
-            height: 50vh;
-            max-height: 500px;
+        /* Custom scrollbar for modal */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
         }
-
-        @media (max-width: 768px) {
-            .chart-container {
-                height: 60vh;
-                max-height: 450px;
-            }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
         }
-
-        .tab-button {
-            transition: all 0.3s ease;
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
         }
-
-        .tab-button.active {
-            border-color: #06b6d4;
-            background-color: #06b6d4;
-            color: #ffffff;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
         }
-
-        .tab-button:not(.active):hover {
-            border-color: #a5f3fc;
-            background-color: #ecfeff;
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
         }
-
-        .dept-card {
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        .animate-zoom-in {
+            animation: zoomIn 0.3s ease-out forwards;
         }
-
-        .dept-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
-
-        .details-content {
-            transition: max-height 0.5s ease-in-out, opacity 0.5s ease-in-out;
-            max-height: 0;
-            opacity: 0;
-            overflow: hidden;
-        }
-
-        .details-content.open {
-            max-height: 1000px;
-            opacity: 1;
+        @keyframes zoomIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
         }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900 leading-relaxed">
+<body>
+    <div id="root"></div>
 
-    <div class="container mx-auto p-4 py-8 md:p-8">
-        
-        <header class="text-center mb-10">
-            <h1 class="text-3xl md:text-4xl font-bold text-cyan-800 mb-2">
-                Guia do Novo Servidor: Explorador de Áreas
-            </h1>
-            <p class="text-lg text-slate-600">
-                Uma visão interativa (e ilustrativa) dos departamentos do Banco Central do Brasil.
-            </p>
-            <p class="text-base text-red-600 font-semibold mt-4 p-3 bg-red-100 border border-red-300 rounded-lg max-w-3xl mx-auto">
-                ATENÇÃO: Todos os dados nesta página (quantidades, subunidades, dia-a-dia) são <strong class="font-bold">ILUSTRATIVOS</strong> e <strong class="font-bold">FICTÍCIOS</strong>, criados apenas para demonstrar esta aplicação. A estrutura real do BCB pode diferir.
-            </p>
-        </header>
+    <script type="text/babel">
+        const { useState, useMemo } = React;
 
-        <nav class="mb-8">
-            <h2 class="text-xl font-semibold text-slate-700 mb-3 text-center sm:text-left">Filtrar por Grande Área:</h2>
-            <div id="tabs-container" class="flex flex-wrap justify-center sm:justify-start gap-2">
-            </div>
-        </nav>
-
-        <main id="content-area" class="w-full">
-        </main>
-
-    </div>
-
-    <footer class="text-center p-6 mt-12 bg-slate-200 text-slate-600 text-sm">
-        <p>&copy; 2025 Aplicação Demonstrativa. Não representa dados oficiais do Banco Central do Brasil.</p>
-    </footer>
-
-    <script>
-        let colaboradoresChartInstance = null;
-        
-        const appData = {
-            diretorias: [
-                { id: 'geral', nome: 'Visão Geral' },
-                { id: 'pol_mon', nome: 'Política Monetária' },
-                { id: 'supervisao', nome: 'Supervisão (Fiscalização)' },
-                { id: 'regulacao', nome: 'Regulação e Inovação' },
-                { id: 'admin', nome: 'Administração e TI' }
-            ],
-            departamentos: [
-                { 
-                    id: 'demab', 
-                    nome: 'Departamento de Operações de Mercado Aberto (Demab)', 
-                    diretoria: 'pol_mon', 
-                    colab: 110, 
-                    dia_a_dia: 'Execução de leilões (operações de "open market") para controlar a taxa Selic. Monitoramento da liquidez bancária em tempo real e gerenciamento das operações de redesconto.',
-                    funcoes: 'Analista de Mercado Aberto, Operador de Mercado, Economista Sênior.',
-                    subunidades: 'Gerência de Operações da Dívida Pública (Gedip), Gerência de Monitoramento de Liquidez (Gemol).'
-                },
-                { 
-                    id: 'depec', 
-                    nome: 'Departamento de Estudos e Pesquisas (Depec)', 
-                    diretoria: 'pol_mon', 
-                    colab: 85, 
-                    dia_a_dia: 'Modelagem macroeconômica para projeção da inflação e PIB. Elaboração de seções técnicas do Relatório de Inflação (RI) e atas do Copom. Pesquisa acadêmica em economia monetária.',
-                    funcoes: 'Economista-Pesquisador, Analista de Modelagem, Cientista de Dados.',
-                    subunidades: 'Gerência de Modelagem Macroeconômica (Gemac), Gerência de Pesquisa Econômica (Gepec).'
-                },
-                { 
-                    id: 'desup', 
-                    nome: 'Departamento de Supervisão Bancária (Desup)', 
-                    diretoria: 'supervisao', 
-                    colab: 160, 
-                    dia_a_dia: 'Supervisão "off-site" (análise de dados e relatórios) e "on-site" (inspeções) dos maiores conglomerados bancários (S1 e S2). Análise de risco de crédito, liquidez e operacional.',
-                    funcoes: 'Supervisor de Campo (Inspetor), Analista de Supervisão Prudencial.',
-                    subunidades: 'Divisão de Supervisão de Bancos S1 (Disb1), Divisão de Supervisão de Risco de Crédito (Disuc).'
-                },
-                { 
-                    id: 'desuc', 
-                    nome: 'Departamento de Supervisão de Conduta (Desuc)', 
-                    diretoria: 'supervisao', 
-                    colab: 90, 
-                    dia_a_dia: 'Análise de reclamações de clientes bancários registradas no BCB. Fiscalização do cumprimento das normas de transparência, tarifas e suitability. Ações de educação financeira.',
-                    funcoes: 'Analista de Conduta, Analista de Reclamações.',
-                    subunidades: 'Gerência de Análise de Reclamações (Gerel), Gerência de Fomento à Cidadania Financeira (Gecif).'
-                },
-                { 
-                    id: 'denor', 
-                    nome: 'Departamento de Regulação do Sistema Financeiro (Denor)', 
-                    diretoria: 'regulacao', 
-                    colab: 100, 
-                    dia_a_dia: 'Redação de normas (Resoluções, Circulares) sobre o SFN. Definição de regras prudenciais (ex: Basileia III), de câmbio e de novos modelos de negócio (ex: Fintechs).',
-                    funcoes: 'Especialista em Regulação, Advogado (parecerista), Analista Normativo.',
-                    subunidades: 'Divisão de Normas Prudenciais (Dinop), Divisão de Regulação de Câmbio (Direc).'
-                },
-                { 
-                    id: 'deinf', 
-                    nome: 'Departamento de Tecnologia da Informação (Deinf)', 
-                    diretoria: 'admin', 
-                    colab: 220, 
-                    dia_a_dia: 'Desenvolvimento e manutenção dos principais sistemas do BCB (ex: STR, Pix). Gerenciamento de infraestrutura de TI, data centers e segurança da informação (cybersecurity).',
-                    funcoes: 'Desenvolvedor(a) de Software, Arquiteto(a) de Soluções, Especialista em Infra/Redes, Analista de Segurança.',
-                    subunidades: 'Divisão de Desenvolvimento do Pix (Dipix), Divisão de Operações de TI (Diopt), Divisão de Segurança Cibernética (Disec).'
-                },
-                { 
-                    id: 'deati', 
-                    nome: 'Departamento de Inovação (Deati)', 
-                    diretoria: 'regulacao', 
-                    colab: 60, 
-                    dia_a_dia: 'Condução da agenda BC# (Open Finance, Pix, Moeda Digital). Gestão do LIFT (Laboratório de Inovações Financeiras). Prospecção de novas tecnologias (IA, DLT/Blockchain).',
-                    funcoes: 'Especialista em Inovação, Analista de Open Finance, Coordenador de Projetos de IA.',
-                    subunidades: 'Gerência de Fomento à Inovação (Gefoi), Gerência de Projetos Especiais (Gepre).'
-                },
-                { 
-                    id: 'deges', 
-                    nome: 'Departamento de Gestão de Pessoas (Deges)', 
-                    diretoria: 'admin', 
-                    colab: 75, 
-                    dia_a_dia: 'Processos de recrutamento e seleção (concursos), gestão de carreira e desempenho, folha de pagamento, programas de treinamento e desenvolvimento (Universidade BCB).',
-                    funcoes: 'Analista de RH, Especialista em T&D, Analista de Folha de Pagamento.',
-                    subunidades: 'Gerência de Desenvolvimento (Gedes), Gerência de Administração de Pessoal (Geape).'
-                }
-            ]
+        // --- ICONS (Inline SVGs for stability) ---
+        const Icons = {
+            Database: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>,
+            ShieldCheck: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg>,
+            Server: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>,
+            Code: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>,
+            TrendingUp: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+            Globe: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>,
+            Briefcase: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
+            Users: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            Search: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>,
+            ChevronRight: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m9 18 6-6-6-6"/></svg>,
+            X: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M18 6 6 18"/><path d="m6 6 18 18"/></svg>,
+            Cpu: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M15 2v2"/><path d="M15 20v2"/><path d="M2 15h2"/><path d="M2 9h2"/><path d="M20 15h2"/><path d="M20 9h2"/><path d="M9 2v2"/><path d="M9 20v2"/></svg>,
+            Landmark: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></svg>,
+            PieChart: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>,
+            BookOpen: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
         };
 
-        document.addEventListener('DOMContentLoaded', () => {
-            init();
-        });
-
-        function init() {
-            renderTabs();
-            renderOverview();
-            
-            const firstTab = document.querySelector('.tab-button');
-            if(firstTab) {
-                firstTab.classList.add('active');
+        // --- DATA ---
+        const departments = [
+            // --- ÁREA DE TI (DEINF) ---
+            {
+                id: 'gedai',
+                category: 'TI',
+                title: 'GEDAI',
+                subtitle: 'Gerência de Dados e Integração',
+                description: 'O cérebro analítico do Banco. Responsável por Big Data, Analytics e Governança da Informação.',
+                icon: Icons.Database,
+                color: 'bg-blue-600',
+                profile: 'Cientista de Dados, Engenheiro de Dados, UX Designer',
+                details: 'A GEDAI é a refinaria de dados do BCB. Se você gosta de trabalhar com volumes massivos (Petabytes), arquitetura de Data Warehouses, ou definir a experiência do usuário (UX) e governança, este é o seu lugar.',
+                subunits: [
+                    { name: 'DINAN', desc: 'Divisão de Inteligência Analítica. Responsável por Big Data, ETL e gestão de 1.5 Petabytes de dados.', tags: ['Big Data', 'ETL', 'Spark'] },
+                    { name: 'DIMEX', desc: 'Metodologias, UX e Low-Code. Guardiões da metodologia ágil e prototipação.', tags: ['UX', 'Agile', 'Low-Code'] },
+                    { name: 'DIVAP', desc: 'Arquiteturas e Portais. A elite técnica que define arquiteturas, Docker e contêineres.', tags: ['Arquitetura', 'Docker', 'DevOps'] },
+                    { name: 'EGINF', desc: 'Escritório de Governança. Os "donos do dado". Cuidam do ciclo de vida e qualidade da informação.', tags: ['Governança', 'Qualidade'] }
+                ]
+            },
+            {
+                id: 'valor',
+                category: 'TI',
+                title: 'VALOR',
+                subtitle: 'Gerência de Valor para Negócio',
+                description: 'A fábrica de software. Onde sistemas críticos como Pix, STR e SVR são construídos.',
+                icon: Icons.Code,
+                color: 'bg-emerald-600',
+                profile: 'Desenvolvedor Full-stack, Product Owner, Dev Back-end',
+                details: 'Na VALOR, a TI encontra o Negócio. As divisões são espelhadas nas diretorias finalísticas. É onde se constrói o produto bancário final que atende a sociedade e o mercado financeiro.',
+                subunits: [
+                    { name: 'DIPIN', desc: 'Provimento de Infra do SFN. O lar do Pix e do STR. Alta criticidade e performance.', tags: ['Pix', 'Java', 'Alta Disponibilidade'] },
+                    { name: 'DIPEM', desc: 'Apoio à Política Monetária. Sistemas para o COPOM, gestão de reservas e mercado aberto.', tags: ['Macroeconomia', 'Trading', 'Matemática'] },
+                    { name: 'DISOF', desc: 'Apoio à Fiscalização. Ferramentas de supervisão bancária e monitoramento de risco.', tags: ['Auditoria', 'Risco', 'Supervisão'] },
+                    { name: 'DIREL', desc: 'Relacionamento Institucional. Sistemas de atendimento ao cidadão e comunicação.', tags: ['Cidadão', 'Web', 'Front-end'] }
+                ]
+            },
+            {
+                id: 'infra',
+                category: 'TI',
+                title: 'INFRA',
+                subtitle: 'Infraestrutura e Cibersegurança',
+                description: 'O chão de fábrica. Garante que o BCB nunca pare. Nuvem, servidores e defesa cibernética.',
+                icon: Icons.Server,
+                color: 'bg-slate-700',
+                profile: 'SysAdmin, Engenheiro de Redes, Especialista em Segurança',
+                details: 'Responsáveis pelo hardware, nuvem híbrida e pela defesa contra ataques. Se a INFRA para, o sistema financeiro nacional sente. Ambiente de alta responsabilidade.',
+                subunits: [
+                    { name: 'DIARQ', desc: 'Arquitetura de Infra. Define o futuro: On-premise vs Cloud (AWS/Azure).', tags: ['Cloud', 'Kubernetes', 'Inovação'] },
+                    { name: 'DIPRO', desc: 'Produção. Os "donos das telas pretas". Linux, Banco de Dados e sustentação.', tags: ['Linux', 'DBA', 'Shell'] },
+                    { name: 'DISEG', desc: 'Segurança Cibernética. A "polícia digital". Pentest, gestão de vulnerabilidades e defesa.', tags: ['Cybersec', 'Pentest', 'Blue Team'] },
+                    { name: 'DIATE', desc: 'Atendimento. Suporte ao usuário final e gestão de ativos de TI.', tags: ['Suporte', 'Hardware', 'Service Desk'] }
+                ]
+            },
+            {
+                id: 'gegov',
+                category: 'TI',
+                title: 'GEGOV',
+                subtitle: 'Gerência de Governança',
+                description: 'O sistema nervoso administrativo. Contratos, Processos e Sistemas Legados.',
+                icon: Icons.Cpu,
+                color: 'bg-indigo-600',
+                profile: 'Gestor de Projetos, Analista de Processos, Especialista Mainframe',
+                details: 'Garante que a TI tenha recursos, contratos e organização. Abriga também a crítica área de sustentação de Mainframe.',
+                subunits: [
+                    { name: 'DISUL', desc: 'Sustentação de Legados. A fortaleza do Mainframe. Estabilidade e missão crítica.', tags: ['Cobol', 'Mainframe', 'Estabilidade'] },
+                    { name: 'DICAP', desc: 'Gerenciamento de Capacidade. Planejamento de alocação de pessoas e recursos.', tags: ['Planejamento', 'Pessoas'] },
+                    { name: 'DIGOV', desc: 'Governança de TIC. Engenharia de processos e gestão de serviços (ITIL).', tags: ['Processos', 'ITIL', 'Compliance'] },
+                    { name: 'DICOL', desc: 'Contratos e Orçamento. Gestão financeira e licitações de TI.', tags: ['Licitações', 'Contratos', 'Orçamento'] }
+                ]
+            },
+            // --- ÁREA DE ECONOMIA / GERAL ---
+            {
+                id: 'dipec',
+                category: 'Economia',
+                title: 'DIPEC / DIMEL',
+                subtitle: 'Política Econômica e Monetária',
+                description: 'O núcleo intelectual. Modelagem econômica, taxa Selic e operações de mercado.',
+                icon: Icons.TrendingUp,
+                color: 'bg-amber-600',
+                profile: 'Economista, Pesquisador, Trader',
+                details: 'Onde os dados viram decisão de juros. Envolve pesquisa acadêmica de ponta (DEPEC/DEPEP) e a adrenalina da mesa de operações (DEMAB).',
+                subunits: [
+                    { name: 'DEPEC', desc: 'Departamento Econômico. A "fábrica de inteligência". Projeções de inflação e PIB.', tags: ['Modelagem', 'Pesquisa', 'Conjuntura'] },
+                    { name: 'DEMAB', desc: 'Operações de Mercado Aberto. A mesa de trading do BC. Executa a política monetária.', tags: ['Mercado Financeiro', 'Investimentos', 'Reservas'] },
+                    { name: 'DEPEP', desc: 'Estudos e Pesquisas. Foco acadêmico e publicações de longo prazo.', tags: ['Academia', 'Papers', 'Teoria'] }
+                ]
+            },
+            {
+                id: 'difis',
+                category: 'Economia',
+                title: 'DIFIS / DIORF',
+                subtitle: 'Fiscalização e Organização',
+                description: 'A muralha regulatória. Supervisão bancária, conduta e licenciamento de novos bancos.',
+                icon: Icons.ShieldCheck,
+                color: 'bg-red-700',
+                profile: 'Auditor, Contador, Especialista em Risco',
+                details: 'A maior força de trabalho do banco. Fiscalizam desde grandes conglomerados até Fintechs. Trabalho investigativo e prudencial.',
+                subunits: [
+                    { name: 'DESUP', desc: 'Supervisão Bancária. Fiscalização de grandes bancos. Foco em solvência e liquidez.', tags: ['Auditoria', 'Bancos', 'Contabilidade'] },
+                    { name: 'DESUC', desc: 'Supervisão de Cooperativas e Fintechs. Foco em novos modelos de negócio.', tags: ['Fintechs', 'Cooperativas', 'Inovação'] },
+                    { name: 'DECON', desc: 'Conduta e PLD. Proteção ao consumidor e prevenção à lavagem de dinheiro.', tags: ['Compliance', 'Anti-Fraude', 'Consumidor'] },
+                    { name: 'DEORF', desc: 'Organização do Sistema. Licenciamento, fusões e aquisições.', tags: ['Licenciamento', 'M&A', 'Societário'] }
+                ]
+            },
+            {
+                id: 'direx',
+                category: 'Economia',
+                title: 'DIREX',
+                subtitle: 'Assuntos Internacionais e Riscos',
+                description: 'A diplomacia financeira e a segunda linha de defesa corporativa.',
+                icon: Icons.Globe,
+                color: 'bg-cyan-600',
+                profile: 'Diplomata Corporativo, Gestor de Riscos, Relações Internacionais',
+                details: 'Conecta o BCB ao mundo (G20, FMI, BIS) e gerencia os riscos internos da própria organização.',
+                subunits: [
+                    { name: 'DERIN', desc: 'Assuntos Internacionais. Negociações no G20, BRICS e OCDE.', tags: ['Diplomacia', 'Inglês', 'Geopolítica'] },
+                    { name: 'DERIS', desc: 'Riscos Corporativos. Compliance interno, continuidade de negócios e gestão de riscos.', tags: ['GRC', 'Compliance', 'Processos'] }
+                ]
+            },
+            {
+                id: 'adm',
+                category: 'Economia',
+                title: 'DIRAD / PRES',
+                subtitle: 'Administração e Governança Central',
+                description: 'O motor operacional. Gestão de pessoas, jurídico, auditoria interna e meio circulante.',
+                icon: Icons.Landmark,
+                color: 'bg-gray-600',
+                profile: 'Advogado, Administrador, Gestor de Pessoas',
+                details: 'Áreas transversais que garantem o funcionamento da instituição. Do jurídico (PGBC) à gestão do dinheiro físico (MECIR).',
+                subunits: [
+                    { name: 'PGBC', desc: 'Procuradoria Geral. Defesa jurídica, consultoria e contencioso.', tags: ['Direito', 'Leis', 'Defesa'] },
+                    { name: 'DEPES', desc: 'Gestão de Pessoas. RH, Universidade Corporativa e Benefícios.', tags: ['RH', 'Educação', 'Carreira'] },
+                    { name: 'AUDIT', desc: 'Auditoria Interna. Avaliação independente de processos e riscos.', tags: ['Auditoria', 'Controle', 'Riscos'] },
+                    { name: 'MECIR', desc: 'Meio Circulante. Logística do dinheiro físico e combate à falsificação.', tags: ['Logística', 'Perícia', 'Numerário'] }
+                ]
             }
-        }
+        ];
 
-        function renderTabs() {
-            const tabsContainer = document.getElementById('tabs-container');
-            tabsContainer.innerHTML = '';
-            appData.diretorias.forEach(dir => {
-                const button = document.createElement('button');
-                button.className = 'tab-button py-2 px-4 rounded-full border-2 border-slate-300 bg-white text-slate-700 font-medium text-sm md:text-base';
-                button.textContent = dir.nome;
-                button.setAttribute('data-filter', dir.id);
-                button.addEventListener('click', () => handleTabClick(dir.id));
-                tabsContainer.appendChild(button);
-            });
-        }
+        // --- APP COMPONENT ---
+        function App() {
+            const [filter, setFilter] = useState('TI'); // 'TI' or 'Economia'
+            const [selectedCard, setSelectedCard] = useState(null);
+            const [searchTerm, setSearchTerm] = useState('');
 
-        function handleTabClick(filterId) {
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.remove('active');
-                if (btn.getAttribute('data-filter') === filterId) {
-                    btn.classList.add('active');
-                }
-            });
-
-            if (filterId === 'geral') {
-                renderOverview();
-            } else {
-                renderDepartments(filterId);
-            }
-        }
-
-        function wrapText(text, maxWidth) {
-            const words = text.split(' ');
-            const lines = [];
-            let currentLine = words[0];
-
-            for (let i = 1; i < words.length; i++) {
-                if ((currentLine + ' ' + words[i]).length > maxWidth) {
-                    lines.push(currentLine);
-                    currentLine = words[i];
-                } else {
-                    currentLine += ' ' + words[i];
-                }
-            }
-            lines.push(currentLine);
-            return lines;
-        }
-        
-        function renderOverview() {
-            const contentArea = document.getElementById('content-area');
-            contentArea.innerHTML = `
-                <div class="bg-white p-6 rounded-xl shadow-lg">
-                    <h2 class="text-2xl font-bold text-cyan-800 mb-4 text-center">
-                        Distribuição de Colaboradores (Dados Ilustrativos)
-                    </h2>
-                    <p class="text-center text-slate-600 mb-6 max-w-2xl mx-auto">
-                        Este gráfico de barras mostra a alocação (fictícia) de servidores por departamento. Isso ajuda a entender a dimensão de cada área e onde o "capital humano" está concentrado, seja em áreas de supervisão intensiva, tecnologia ou pesquisa econômica.
-                    </p>
-                    <div class="chart-container">
-                        <canvas id="colaboradoresChart"></canvas>
-                    </div>
-                </div>
-            `;
-            initChart(appData.departamentos);
-        }
-
-        function initChart(data) {
-            const ctx = document.getElementById('colaboradoresChart').getContext('2d');
-            
-            if (colaboradoresChartInstance) {
-                colaboradoresChartInstance.destroy();
-            }
-            
-            const labels = data.map(d => d.nome);
-            const values = data.map(d => d.colab);
-
-            colaboradoresChartInstance = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Nº de Colaboradores (Ilustrativo)',
-                        data: values,
-                        backgroundColor: '#06b6d4',
-                        borderColor: '#0891b2',
-                        borderWidth: 1,
-                        borderRadius: 4,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: '#e2e8f0'
-                            },
-                            ticks: {
-                                color: '#334155'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            },
-                            ticks: {
-                                color: '#334155',
-                                autoSkip: false,
-                                maxRotation: 90,
-                                minRotation: 70,
-                                callback: function(value) {
-                                    const label = this.getLabelForValue(value);
-                                    if (label.length > 25) {
-                                        return label.substring(0, 25) + '...';
-                                    }
-                                    return label;
-                                }
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            backgroundColor: '#0f172a',
-                            titleFont: { size: 14, weight: 'bold' },
-                            bodyFont: { size: 12 },
-                            padding: 12,
-                            cornerRadius: 6,
-                            callbacks: {
-                                title: function(tooltipItems) {
-                                    const label = tooltipItems[0].label;
-                                    return wrapText(label, 40);
-                                },
-                                label: function(context) {
-                                    return ` Colaboradores: ${context.parsed.y}`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-        
-        function renderDepartments(filterId) {
-            const contentArea = document.getElementById('content-area');
-            const filteredDepts = appData.departamentos.filter(d => d.diretoria === filterId);
-            
-            if (filteredDepts.length === 0) {
-                contentArea.innerHTML = '<p class="text-center text-slate-500">Nenhum departamento encontrado para esta área.</p>';
-                return;
-            }
-
-            const intro = appData.diretorias.find(d => d.id === filterId);
-            let introHtml = `
-                <div class="mb-8 p-5 bg-white rounded-lg shadow">
-                    <h2 class="text-2xl font-bold text-cyan-800 mb-2">
-                        Explorando: ${intro ? intro.nome : ''}
-                    </h2>
-                    <p class="text-slate-600">
-                        Abaixo estão os principais departamentos (fictícios) ligados a esta diretoria. Clique em "Ver Mais" para expandir os detalhes sobre o cotidiano, as funções típicas e as subunidades de cada um.
-                    </p>
-                </div>
-            `;
-            
-            const gridHtml = filteredDepts.map(dept => createDeptCard(dept)).join('');
-            contentArea.innerHTML = introHtml + `<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">` + gridHtml + `</div>`;
-        
-            addCardToggleListeners();
-        }
-
-        function createDeptCard(dept) {
-            const detailsId = `details-${dept.id}`;
-            return `
-                <div class="dept-card flex flex-col bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200">
-                    <div class="p-5 flex-grow">
-                        <h3 class="text-lg font-bold text-cyan-900 mb-2">${dept.nome}</h3>
-                        <p class="text-sm text-slate-600 mb-3">
-                            <span class="font-semibold">Colaboradores (aprox.):</span> 
-                            <span class="text-cyan-700 font-bold">${dept.colab}</span>
-                        </p>
-                        <p class="text-sm text-slate-600 line-clamp-3">
-                            <span class="font-semibold">Dia a Dia:</span> ${dept.dia_a_dia}
-                        </p>
-                    </div>
+            const filteredData = useMemo(() => {
+                return departments.filter(dept => {
+                    const matchesCategory = dept.category === filter;
+                    const matchesSearch = 
+                        dept.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                        dept.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                        dept.subunits.some(sub => sub.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase())));
                     
-                    <div class="details-content" id="${detailsId}">
-                        <div class="p-5 border-t border-slate-200 bg-slate-50">
-                            <h4 class="font-semibold text-slate-700 mb-2">Funções Típicas:</h4>
-                            <p class="text-sm text-slate-600 mb-4">${dept.funcoes}</p>
-                            
-                            <h4 class="font-semibold text-slate-700 mb-2">Principais Subunidades (Exemplos):</h4>
-                            <p class="text-sm text-slate-600">${dept.subunidades}</p>
-                        </div>
-                    </div>
-                    
-                    <div class="p-4 bg-gray-50 border-t border-slate-200 text-right">
-                        <button 
-                            class="toggle-details-btn text-sm font-medium text-cyan-700 hover:text-cyan-900"
-                            data-target-id="${detailsId}">
-                            Ver Mais <span>&darr;</span>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }
-
-        function addCardToggleListeners() {
-            document.querySelectorAll('.toggle-details-btn').forEach(button => {
-                button.addEventListener('click', () => {
-                    const targetId = button.getAttribute('data-target-id');
-                    const targetContent = document.getElementById(targetId);
-                    
-                    if (targetContent) {
-                        const isOpen = targetContent.classList.toggle('open');
-                        button.querySelector('span').innerHTML = isOpen ? '&uarr;' : '&darr;';
-                        button.childNodes[0].nodeValue = isOpen ? 'Ver Menos ' : 'Ver Mais ';
-                    }
+                    return matchesCategory && matchesSearch;
                 });
-            });
-        }
-    </script>
+            }, [filter, searchTerm]);
 
+            const IconComponent = (iconProps) => {
+                const Icon = iconProps.icon;
+                return <Icon size={iconProps.size} className={iconProps.className} />;
+            };
+
+            return (
+                <div className="min-h-screen bg-slate-50 text-slate-800 pb-12">
+                    
+                    {/* HEADER */}
+                    <header className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
+                        <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-[#003463] rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-md">
+                                    BC
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-slate-900 leading-tight">Guia de Lotação</h1>
+                                    <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">Novos Auditores</p>
+                                </div>
+                            </div>
+
+                            {/* FILTER TOGGLE */}
+                            <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner">
+                                <button
+                                    onClick={() => { setFilter('TI'); setSelectedCard(null); }}
+                                    className={`px-6 py-2 rounded-lg text-sm font-bold transition-all duration-300 flex items-center gap-2 ${
+                                        filter === 'TI' 
+                                            ? 'bg-white text-[#003463] shadow-md ring-1 ring-black/5' 
+                                            : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    <Icons.Cpu size={16} /> Tecnologia (DEINF)
+                                </button>
+                                <button
+                                    onClick={() => { setFilter('Economia'); setSelectedCard(null); }}
+                                    className={`px-6 py-2 rounded-lg text-sm font-bold transition-all duration-300 flex items-center gap-2 ${
+                                        filter === 'Economia' 
+                                            ? 'bg-white text-amber-700 shadow-md ring-1 ring-black/5' 
+                                            : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                                >
+                                    <Icons.Landmark size={16} /> Economia & Geral
+                                </button>
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* MAIN CONTENT */}
+                    <main className="max-w-6xl mx-auto px-4 py-8">
+                        {/* INTRO & SEARCH */}
+                        <div className="mb-10 text-center max-w-2xl mx-auto">
+                            <h2 className="text-3xl font-bold text-slate-900 mb-3">Encontre o seu lugar no Banco</h2>
+                            <p className="text-slate-600 mb-6">
+                                O Banco Central é um universo. Utilize os filtros para explorar as áreas de acordo com o seu perfil profissional.
+                            </p>
+                            
+                            <div className="relative group">
+                                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                                    <Icons.Search size={20} />
+                                </div>
+                                <input 
+                                    type="text" 
+                                    placeholder="Busque por palavras-chave (ex: Python, Macroeconomia, Pix, Jurídico)..." 
+                                    className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#003463] focus:border-transparent shadow-sm transition-all text-slate-700 placeholder:text-slate-400"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                        </div>
+
+                        {/* GRID LAYOUT */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
+                            {filteredData.map((dept) => (
+                                <div 
+                                    key={dept.id}
+                                    onClick={() => setSelectedCard(dept)}
+                                    className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col h-full"
+                                >
+                                    <div className="flex items-start justify-between mb-4">
+                                        <div className={`p-3 rounded-xl ${dept.color} text-white shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                                            <IconComponent icon={dept.icon} size={28} />
+                                        </div>
+                                        <div className="flex items-center text-slate-400 group-hover:text-[#003463] transition-colors font-medium">
+                                            <span className="text-xs uppercase tracking-wider mr-1 opacity-0 group-hover:opacity-100 transition-opacity">Ver Detalhes</span>
+                                            <Icons.ChevronRight size={20} />
+                                        </div>
+                                    </div>
+                                    
+                                    <h3 className="text-xl font-bold text-slate-800 mb-1">{dept.title}</h3>
+                                    <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3 min-h-[1.25rem]">{dept.subtitle}</h4>
+                                    <p className="text-slate-600 leading-relaxed mb-6 line-clamp-2 flex-grow">
+                                        {dept.description}
+                                    </p>
+
+                                    <div className="flex flex-wrap gap-2 mt-auto">
+                                        {dept.subunits.slice(0, 3).map((sub, idx) => (
+                                            <span key={idx} className="bg-slate-50 text-slate-600 text-xs px-2.5 py-1 rounded-md font-medium border border-slate-200 group-hover:border-slate-300 transition-colors">
+                                                {sub.name}
+                                            </span>
+                                        ))}
+                                        {dept.subunits.length > 3 && (
+                                            <span className="text-xs text-slate-400 flex items-center self-center px-1 font-medium">+{dept.subunits.length - 3}</span>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {filteredData.length === 0 && (
+                            <div className="text-center py-20 opacity-50 flex flex-col items-center">
+                                <Icons.Search size={48} className="mb-4 text-slate-300" />
+                                <p className="text-xl font-medium text-slate-600">Nenhuma unidade encontrada para "{searchTerm}"</p>
+                                <p className="text-slate-500 mt-2">Tente mudar o termo ou a categoria (TI / Economia).</p>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* MODAL DETALHES */}
+                    {selectedCard && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+                            <div 
+                                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 
+                                onClick={() => setSelectedCard(null)}
+                            />
+                            
+                            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col relative animate-zoom-in">
+                                
+                                {/* Modal Header */}
+                                <div className={`relative px-8 py-8 ${selectedCard.color} text-white rounded-t-3xl flex-shrink-0`}>
+                                    <button 
+                                        onClick={() => setSelectedCard(null)}
+                                        className="absolute top-6 right-6 p-2 bg-white/20 hover:bg-white/30 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-white/50"
+                                    >
+                                        <Icons.X size={20} />
+                                    </button>
+
+                                    <div className="flex items-center gap-5">
+                                        <div className="p-4 bg-white/20 rounded-2xl backdrop-blur-md shadow-inner">
+                                            <IconComponent icon={selectedCard.icon} size={40} />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-3xl font-bold tracking-tight">{selectedCard.title}</h2>
+                                            <p className="opacity-90 font-medium text-lg mt-1">{selectedCard.subtitle}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Modal Content - Scrollable */}
+                                <div className="overflow-y-auto p-8 bg-white custom-scrollbar rounded-b-3xl">
+                                    <div className="flex flex-col md:flex-row gap-8">
+                                        
+                                        {/* Left Column: Overview */}
+                                        <div className="md:w-1/3 space-y-8 flex-shrink-0">
+                                            <div className="animate-fade-in" style={{animationDelay: '0.1s'}}>
+                                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                                    <Icons.BookOpen size={16} /> Descrição
+                                                </h3>
+                                                <p className="text-slate-700 leading-relaxed text-base">
+                                                    {selectedCard.details}
+                                                </p>
+                                            </div>
+
+                                            <div className="animate-fade-in" style={{animationDelay: '0.2s'}}>
+                                                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                                    <Icons.Users size={16} /> Perfil Ideal
+                                                </h3>
+                                                <div className="bg-slate-50 border border-slate-100 p-5 rounded-xl text-slate-700 font-medium">
+                                                    {selectedCard.profile}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Right Column: Hierarchy / Subunits */}
+                                        <div className="md:w-2/3 border-t md:border-t-0 md:border-l border-slate-100 pt-8 md:pt-0 md:pl-8">
+                                            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+                                                <Icons.PieChart size={20} className="text-slate-400" />
+                                                Subunidades & Oportunidades
+                                            </h3>
+
+                                            <div className="space-y-4">
+                                                {selectedCard.subunits.map((sub, idx) => (
+                                                    <div 
+                                                        key={idx} 
+                                                        className="group relative bg-white border border-slate-200 hover:border-blue-300 rounded-xl p-5 transition-all hover:shadow-md animate-fade-in"
+                                                        style={{animationDelay: `${0.1 * (idx + 1)}s`}}
+                                                    >
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <h4 className="text-lg font-bold text-slate-800 group-hover:text-[#003463] transition-colors">
+                                                                {sub.name}
+                                                            </h4>
+                                                        </div>
+                                                        <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+                                                            {sub.desc}
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {sub.tags.map((tag, tIdx) => (
+                                                                <span 
+                                                                    key={tIdx} 
+                                                                    className={`text-xs px-2.5 py-1 rounded-full font-semibold tracking-wide border ${
+                                                                        filter === 'TI' 
+                                                                            ? 'bg-blue-50 text-blue-700 border-blue-100' 
+                                                                            : 'bg-amber-50 text-amber-700 border-amber-100'
+                                                                    }`}
+                                                                >
+                                                                    {tag}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                {/* Modal Footer */}
+                                <div className="p-4 bg-slate-50 border-t border-slate-100 text-center text-xs text-slate-400 flex-shrink-0 rounded-b-3xl">
+                                    Baseado no Relatório Estratégico Organizacional e Guia de Lotação do BCB.
+                                </div>
+
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
+
